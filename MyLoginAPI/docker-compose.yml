@@ -1,0 +1,26 @@
+version: "3.1"
+
+services:
+  postgres:
+    image: postgres:latest
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: mylogindb
+    ports:
+      - "5433:5432" # Porta ajustada para o PostgreSQL
+
+  pgadmin:
+    image: dpage/pgadmin4
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: Admin123!
+    ports:
+      - "8082:80" # Porta ajustada para pgAdmin
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:

@@ -1,11 +1,12 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using MyLoginAPI.Data; // Adicione esta linha para referenciar o DbContext
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configurando o JWT
+// Configuração do JWT Authentication
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -21,24 +22,24 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuerSigningKey = true,
         ValidIssuer = builder.Configuration["Jwt:Issuer"],
         ValidAudience = builder.Configuration["Jwt:Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"])) // A nova chave secreta
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
     };
 });
 
-// Configurando o banco de dados em memória
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseInMemoryDatabase("InMemoryDb"));
+// Configuração do banco de dados PostgreSQL
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddControllers();
 
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend",
-        builder =>
+        policyBuilder =>
         {
-            builder.WithOrigins("http://localhost:3000") // URL do frontend
-                   .AllowAnyHeader()
-                   .AllowAnyMethod();
+            policyBuilder.WithOrigins("http://localhost:3000")
+                         .AllowAnyHeader()
+                         .AllowAnyMethod();
         });
 });
 
@@ -50,13 +51,5 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-
-using (var scope = app.Services.CreateScope())
-{
-    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    // Adicionando um usuário de exemplo
-    context.Users.Add(new User { Username = "admin@example.com", Password = "Admin123!" });
-    context.SaveChanges();
-}
 
 app.Run();

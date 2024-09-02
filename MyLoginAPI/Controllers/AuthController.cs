@@ -1,20 +1,25 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
+using MyLoginAPI.Data; // Certifique-se de que o namespace esteja correto
+using MyLoginAPI.Models; // Certifique-se de que o namespace esteja correto para os modelos
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.AspNetCore.Identity;
 
 [Route("api/[controller]")]
 [ApiController]
 public class AuthController : ControllerBase
 {
-    private readonly AppDbContext _context;
+    private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
+    private readonly PasswordHasher<User> _passwordHasher;
 
-    public AuthController(AppDbContext context, IConfiguration configuration)
+    public AuthController(ApplicationDbContext context, IConfiguration configuration)
     {
         _context = context;
         _configuration = configuration;
+        _passwordHasher = new PasswordHasher<User>();
     }
 
     [HttpPost("login")]
@@ -22,11 +27,19 @@ public class AuthController : ControllerBase
     {
         try
         {
-            var user = _context.Users.SingleOrDefault(u => u.Username == loginDto.Username && u.Password == loginDto.Password);
+            var user = _context.Users.SingleOrDefault(u => u.Username == loginDto.Username);
 
             if (user == null)
             {
-                Console.WriteLine("Usuário não encontrado ou senha incorreta.");
+                Console.WriteLine("Usuário não encontrado.");
+                return Unauthorized();
+            }
+
+            var passwordVerificationResult = _passwordHasher.VerifyHashedPassword(user, user.Password, loginDto.Password);
+
+            if (passwordVerificationResult != PasswordVerificationResult.Success)
+            {
+                Console.WriteLine("Senha incorreta.");
                 return Unauthorized();
             }
 
@@ -40,21 +53,20 @@ public class AuthController : ControllerBase
         }
     }
 
-
     private string GenerateJwtToken(User user)
     {
         var claims = new[]
         {
-        new Claim(JwtRegisteredClaimNames.Sub, user.Username),
-        new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-    };
+            new Claim(JwtRegisteredClaimNames.Sub, user.Username),
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+        };
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"])); // Verifique se o valor não é nulo
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var token = new JwtSecurityToken(
-            issuer: _configuration["Jwt:Issuer"], // Verifique se o valor não é nulo
-            audience: _configuration["Jwt:Audience"], // Verifique se o valor não é nulo
+            issuer: _configuration["Jwt:Issuer"],
+            audience: _configuration["Jwt:Audience"],
             claims: claims,
             expires: DateTime.Now.AddMinutes(30),
             signingCredentials: creds);
